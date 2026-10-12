@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0F172A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SmartGrocery">
+  <meta name="description" content="PWA Pelacak Belanja Bulanan & Pengendali Anggaran Mahasiswa Rantau">
+  <title>Smart Grocery & Budget Safety Tracker</title>
+
+  <!-- PWA Manifest & App Icons -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+  <link rel="apple-touch-icon" href="icons/icon.svg">
+
+  <!-- Typography: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Core Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- MOBILE VIEWPORT CONTAINER (Max 430px, centered on desktop) -->
+  <div class="device-container">
+
+    <!-- Mock Phone Status Bar (Dynamic Island & Network/Battery) -->
+    <header class="phone-status-bar">
+      <span class="status-time" id="phone-time">09:41</span>
+      <div class="dynamic-island">
+        <span class="island-dot"></span>
+        <span style="font-size: 10px; font-weight: 700; color: #10B981;">Troli Aktif</span>
+      </div>
+      <div class="status-icons">
+        <!-- 5G / Signal Icon -->
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 20h.01"></path><path d="M7 20v-4"></path><path d="M12 20v-8"></path><path d="M17 20V4"></path>
+        </svg>
+        <!-- Wifi Icon -->
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line>
+        </svg>
+        <!-- Battery Icon -->
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="7" width="16" height="10" rx="2" ry="2"></rect><line x1="22" y1="11" x2="22" y2="13"></line>
+        </svg>
+      </div>
+    </header>
+
+    <!-- ======================================================================
+         STICKY HEADER: PENGENDALI ANGGARAN (BUDGET SAFETY CAP)
+         Selalu terlihat saat mendorong troli supermarket
+         ====================================================================== -->
+    <div class="safety-header" id="safety-header">
+      <div class="safety-top-row">
+        <div class="app-branding">
+          <div class="app-badge-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="8" cy="21" r="1"></circle>
+              <circle cx="19" cy="21" r="1"></circle>
+              <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"></path>
+            </svg>
+          </div>
+          <div class="app-title-group">
+            <h1>Smart Grocery</h1>
+            <p>Safety Budget Tracker Anak Rantau</p>
+          </div>
+        </div>
+
+        <!-- Quick Budget Target Trigger -->
+        <div class="quick-budget-badge" onclick="window.SmartGrocery.switchTab('budget')" title="Ubah batas dompet">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <rect x="2" y="4" width="20" height="16" rx="2"></rect><line x1="12" y1="10" x2="12" y2="14"></line>
+          </svg>
+          <span>Limit: <strong id="quick-budget-val">Rp 500.000</strong></span>
+        </div>
+      </div>
+
+      <!-- Realtime Safety Figures -->
+      <div class="safety-metrics">
+        <div class="current-spent-box">
+          <span class="current-spent-label">Total Belanja Saat Ini</span>
+          <span class="current-spent-val" id="spent-val">Rp 0</span>
+        </div>
+        <div class="safety-status-tag safe" id="safety-status-tag">
+          Aman ✅
+        </div>
+      </div>
+
+      <!-- Live Dynamic Progress Bar -->
+      <div class="progress-container">
+        <div class="progress-fill" id="safety-progress-fill" style="width: 0%;"></div>
+      </div>
+      <div class="progress-subtext" id="progress-subtext">
+        <span>0% Terpakai</span>
+        <span>Sisa: Rp 500.000</span>
+      </div>
+    </div>
+
+    <!-- ======================================================================
+         MAIN CONTENT SCROLLER (3 TAB VIEWS)
+         ====================================================================== -->
+    <main class="main-content">
+
+      <!-- TAB 1: BELANJA (TROLI SUPERMARKET) -->
+      <section class="tab-view active" id="tab-view-trolley">
+        
+        <!-- Controls & Category Filter -->
+        <div class="trolley-controls">
+          <!-- Category Quick Chips -->
+          <div class="category-chips">
+            <button class="chip-btn active" data-cat="all">Semua</button>
+            <button class="chip-btn" data-cat="pokok">🌾 Bahan Pokok</button>
+            <button class="chip-btn" data-cat="protein">🥩 Protein/Lauk</button>
+            <button class="chip-btn" data-cat="sayur">🥬 Sayur & Buah</button>
+            <button class="chip-btn" data-cat="kebersihan">🧴 Kebersihan</button>
+            <button class="chip-btn" data-cat="bumbu">🧂 Dapur</button>
+            <button class="chip-btn" data-cat="minuman">☕ Minuman/Snack</button>
+          </div>
+
+          <!-- Quick Search & Add Button -->
+          <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+            <div style="flex: 1; position: relative;">
+              <input type="text" id="search-item-input" class="form-input-text" placeholder="Cari barang di troli..." style="padding: 9px 12px 9px 34px; font-size: 13px;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="position: absolute; left: 11px; top: 12px; color: var(--text-dim);">
+                <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+            </div>
+            <button class="btn-add-primary" onclick="window.SmartGrocery.openAddModal()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                <line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>Tambah</span>
+            </button>
+          </div>
+
+          <!-- Summary Mini Banner -->
+          <div class="trolley-summary-banner">
+            <div class="banner-left">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5">
+                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+              </svg>
+              <span id="trolley-savings-summary" class="banner-highlight">Hemat Diskon: Rp 0</span>
+            </div>
+            <span id="trolley-item-count" style="font-size: 11.5px; font-weight: 700; color: var(--text-muted);">
+              0 di Troli
+            </span>
+          </div>
+        </div>
+
+        <!-- List Grocery Cards (Mobile Touch Ergonomics) -->
+        <div class="grocery-list" id="grocery-list-container">
+          <!-- Rendered via JS -->
+        </div>
+
+        <!-- Empty State (Jika keranjang kosong) -->
+        <div class="empty-state" id="empty-trolley-state" style="display: none;">
+          <div class="empty-icon-wrap">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="8" cy="21" r="1"></circle><circle cx="19" cy="21" r="1"></circle>
+              <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"></path>
+            </svg>
+          </div>
+          <h3 class="empty-title">Troli Belanja Kosong</h3>
+          <p class="empty-desc">
+            Mulai masukkan belanjaan bulananmu sambil mendorong troli supermarket.
+          </p>
+          <button class="btn-preset-seed" onclick="window.SmartGrocery.populatePresetItems()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
+            <span>Muat Daftar Pokok Anak Rantau</span>
+          </button>
+        </div>
+
+        <!-- Checkout Floating CTA Bar -->
+        <div class="checkout-bar-dock" id="checkout-bar-dock">
+          <button class="btn-checkout-finish" onclick="window.SmartGrocery.handleCheckout()">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <span>Selesaikan Belanja (Checkout)</span>
+            </div>
+            <span id="checkout-btn-total">Rp 0</span>
+          </button>
+        </div>
+
+      </section>
+
+      <!-- TAB 2: RIWAYAT & DATABASE BULAN LALU -->
+      <section class="tab-view" id="tab-view-history">
+        <div class="history-section-header">
+          <h2 class="section-title">Riwayat Belanja Bulanan</h2>
+          <p class="section-subtitle">Arsip belanja dan pembanding harga resmi bulan sebelumnya</p>
+        </div>
+
+        <div id="history-list-container">
+          <!-- Rendered via JS -->
+        </div>
+
+        <!-- Kamus Database Referensi Harga Bulan Lalu -->
+        <div class="reference-price-box">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <div>
+              <h3 style="font-size: 14px; font-weight: 800; color: var(--text-main);">Database Harga Referensi</h3>
+              <p style="font-size: 11px; color: var(--text-muted);">Data pembanding resmi untuk indikator ↑ ↓ =</p>
+            </div>
+            <span style="font-size: 11px; background: rgba(56, 189, 248, 0.15); color: #38BDF8; padding: 2px 8px; border-radius: 99px; font-weight: 700;">
+              Otomatis Terupdate
+            </span>
+          </div>
+
+          <div id="ref-prices-list">
+            <!-- Rendered via JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: ANGGARAN & SAFETY CONTROLS -->
+      <section class="tab-view" id="tab-view-budget">
+        <div class="history-section-header">
+          <h2 class="section-title">Pengendali Anggaran (Safety Cap)</h2>
+          <p class="section-subtitle">Atur batas dompet agar tidak kebablasan saat di supermarket</p>
+        </div>
+
+        <!-- Budget Setup Card -->
+        <div class="budget-setup-card">
+          <label class="budget-input-label" for="budget-limit-input">Batas Maksimal Belanja Bulan Ini</label>
+          <div class="large-currency-input-wrap">
+            <span class="currency-prefix">Rp</span>
+            <input type="number" id="budget-limit-input" class="large-number-input" placeholder="500000" step="10000">
+          </div>
+
+          <div class="preset-budget-chips">
+            <button class="preset-chip preset-budget-btn" data-val="300000">Rp 300.000</button>
+            <button class="preset-chip preset-budget-btn" data-val="500000">Rp 500.000 (Default)</button>
+            <button class="preset-chip preset-budget-btn" data-val="750000">Rp 750.000</button>
+            <button class="preset-chip preset-budget-btn" data-val="1000000">Rp 1.000.000</button>
+          </div>
+        </div>
+
+        <!-- Breakdown Pengeluaran per Kategori -->
+        <div class="category-analytics-card">
+          <h3 style="font-size: 14px; font-weight: 800; margin-bottom: 12px; color: var(--text-main);">
+            📊 Alokasi Belanja Berdasarkan Kategori
+          </h3>
+          <div id="category-bars-container">
+            <!-- Rendered via JS -->
+          </div>
+        </div>
+
+        <!-- Tips Belanja Hemat Anak Rantau -->
+        <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-lg); padding: 14px; margin-top: 16px;">
+          <h4 style="font-size: 13px; font-weight: 800; color: #34D399; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+            💡 Tips Belanja Cerdas Anak Rantau
+          </h4>
+          <ul style="font-size: 11.5px; color: var(--text-muted); line-height: 1.6; padding-left: 18px;">
+            <li>Perhatikan tanda <strong>↓ Hijau</strong> untuk barang yang sedang diskon/turun harga dibanding bulan lalu.</li>
+            <li>Manfaatkan kalkulator <strong>50% + 20%</strong> untuk mengecek diskon bertingkat supermarket secara akurat.</li>
+            <li>Jika header menyala <strong>Merah Berkedip</strong>, pertimbangkan mengembalikan barang sekunder dari keranjang sebelum ke kasir.</li>
+          </ul>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- ======================================================================
+         BOTTOM NAVIGATION BAR (FLOATING NATIVE FEEL)
+         ====================================================================== -->
+    <nav class="bottom-nav-bar">
+      <!-- Tab 1: Belanja -->
+      <button class="nav-item-btn active" data-tab="trolley" id="nav-btn-trolley">
+        <svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="8" cy="21" r="1"></circle><circle cx="19" cy="21" r="1"></circle>
+          <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"></path>
+        </svg>
+        <span>Belanja</span>
+        <span class="nav-badge-count" id="nav-trolley-badge" style="display: none;">0</span>
+      </button>
+
+      <!-- Tab 2: Riwayat -->
+      <button class="nav-item-btn" data-tab="history" id="nav-btn-history">
+        <svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+        <span>Riwayat</span>
+      </button>
+
+      <!-- Tab 3: Anggaran -->
+      <button class="nav-item-btn" data-tab="budget" id="nav-btn-budget">
+        <svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="4" width="20" height="16" rx="2"></rect><circle cx="16" cy="12" r="2"></circle><line x1="2" y1="10" x2="22" y2="10"></line>
+        </svg>
+        <span>Anggaran</span>
+      </button>
+    </nav>
+
+    <!-- ======================================================================
+         BOTTOM SHEET MODAL: TAMBAH / EDIT ITEM BELANJA
+         Ergonomi satu tangan saat memegang smartphone di troli
+         ====================================================================== -->
+    <div class="modal-overlay" id="item-modal-overlay">
+      <div class="bottom-sheet">
+        <div class="sheet-drag-handle"></div>
+
+        <div class="sheet-header">
+          <h3 class="sheet-title" id="modal-sheet-title">Tambah Barang Belanja</h3>
+          <button class="sheet-close-btn" onclick="window.SmartGrocery.closeModal()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        <form id="item-form" onsubmit="event.preventDefault(); window.SmartGrocery.handleSaveModalItem();">
+          
+          <!-- Nama Barang & Saran Cepat Anak Kos -->
+          <div class="form-group">
+            <label class="form-label" for="item-input-name">Nama Produk / Barang</label>
+            <input type="text" id="item-input-name" class="form-input-text" placeholder="Contoh: Beras Ramos 5kg, Telur, Sabun" required autocomplete="off">
+            
+            <div style="margin-top: 6px;">
+              <span style="font-size: 10.5px; color: var(--text-dim);">Saran Cepat Anak Kos:</span>
+              <div class="quick-suggest-wrap" id="modal-suggestions">
+                <!-- Injected via JS -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Kategori Barang -->
+          <div class="form-group">
+            <label class="form-label">Kategori</label>
+            <div class="pill-grid" id="modal-category-pills">
+              <button type="button" class="pill-option cat-pill active" data-cat="pokok">🌾 Pokok</button>
+              <button type="button" class="pill-option cat-pill" data-cat="protein">🥩 Protein</button>
+              <button type="button" class="pill-option cat-pill" data-cat="sayur">🥬 Sayur/Buah</button>
+              <button type="button" class="pill-option cat-pill" data-cat="bumbu">🧂 Dapur</button>
+              <button type="button" class="pill-option cat-pill" data-cat="kebersihan">🧴 Kebersihan</button>
+              <button type="button" class="pill-option cat-pill" data-cat="minuman">☕ Minuman</button>
+              <button type="button" class="pill-option cat-pill" data-cat="camilan">🍪 Snack</button>
+            </div>
+          </div>
+
+          <!-- Satuan Barang -->
+          <div class="form-group">
+            <label class="form-label">Satuan</label>
+            <div class="pill-grid" id="modal-unit-pills">
+              <button type="button" class="pill-option unit-pill active" data-unit="pcs">pcs</button>
+              <button type="button" class="pill-option unit-pill" data-unit="kg">kg</button>
+              <button type="button" class="pill-option unit-pill" data-unit="liter">liter</button>
+              <button type="button" class="pill-option unit-pill" data-unit="pack">pack</button>
+              <button type="button" class="pill-option unit-pill" data-unit="botol">botol</button>
+              <button type="button" class="pill-option unit-pill" data-unit="dus">dus</button>
+            </div>
+          </div>
+
+          <!-- Input Harga Satuan & Stepper Kuantitas -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label" for="item-input-price">Harga Satuan (Rp)</label>
+              <input type="number" id="item-input-price" class="form-input-text" placeholder="25000" required step="100">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="item-input-qty">Kuantitas (Qty)</label>
+              <div class="stepper-container" style="background: var(--bg-input);">
+                <button type="button" class="stepper-btn" id="modal-qty-dec">-</button>
+                <input type="number" id="item-input-qty" value="1" min="1" class="stepper-value" style="background: transparent; border: none; outline: none; width: 40px;">
+                <button type="button" class="stepper-btn" id="modal-qty-inc">+</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- KOMPARATOR REALTIME DI DALAM MODAL -->
+          <div class="modal-comparator-box" id="modal-comp-box" style="display: none;">
+            <div class="comparator-box-info">
+              <span class="comparator-box-title">Perbandingan vs Bulan Lalu:</span>
+              <span id="modal-comp-detail" style="font-size: 11px; color: var(--text-dim);">Harga bulan lalu: Rp 0</span>
+            </div>
+            <span class="safety-status-tag safe" id="modal-comp-status">Stabil =</span>
+          </div>
+
+          <!-- KALKULATOR DISKON BERTINGKAT SECTION -->
+          <div class="discount-calc-card">
+            <div class="discount-calc-header">
+              <span class="discount-calc-title">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <path d="M19 5L5 19"></path><circle cx="6.5" cy="6.5" r="2.5"></circle><circle cx="17.5" cy="17.5" r="2.5"></circle>
+                </svg>
+                Diskon / Promo Supermarket
+              </span>
+              <span style="font-size: 10.5px; color: var(--text-dim);">Dukung diskon bertingkat</span>
+            </div>
+
+            <input type="text" id="item-input-discount" class="form-input-text" placeholder="Contoh: 25% atau 50% + 20% atau 5000">
+
+            <!-- Quick Chips for Promos -->
+            <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
+              <button type="button" class="suggest-chip quick-disc-chip" data-val="10%">10%</button>
+              <button type="button" class="suggest-chip quick-disc-chip" data-val="25%">25%</button>
+              <button type="button" class="suggest-chip quick-disc-chip" data-val="50%">50%</button>
+              <button type="button" class="suggest-chip quick-disc-chip" data-val="50% + 20%" style="color: #FBBF24; font-weight: 700;">50% + 20%</button>
+              <button type="button" class="suggest-chip quick-disc-chip" data-val="30% + 10%" style="color: #FBBF24; font-weight: 700;">30% + 10%</button>
+              <button type="button" class="suggest-chip quick-disc-chip" data-val="5000">Rp 5.000</button>
+            </div>
+
+            <!-- Realtime Discount Math Breakdown Preview -->
+            <div class="discount-calc-preview" id="discount-calc-preview" style="display: none;"></div>
+          </div>
+
+          <!-- Submit Button -->
+          <button type="submit" class="btn-submit-modal">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            <span>Simpan ke Troli Belanja</span>
+          </button>
+        </form>
+
+      </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION FLOATING -->
+    <div class="toast-notice" id="toast-notice"></div>
+
+  </div>
+
+  <!-- Main JavaScript Logic -->
+  <script src="js/app.js"></script>
+</body>
+</html>
