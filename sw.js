@@ -1,9 +1,10 @@
-const CACHE_NAME = 'smart-grocery-v1';
+const CACHE_NAME = 'smart-grocery-v2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './css/style.css',
   './js/app.js',
+  './js/firebase-sync.js',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png'
@@ -32,6 +33,13 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Let Firebase / Firestore network and gstatic streams pass directly to browser
+  if (event.request.url.includes('firestore.googleapis.com') ||
+      event.request.url.includes('firebase') ||
+      event.request.url.includes('gstatic.com')) {
+    return;
+  }
+
   // Navigation or asset cache first with network fallback
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {

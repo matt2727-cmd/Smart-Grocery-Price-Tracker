@@ -71,12 +71,20 @@
           </div>
         </div>
 
-        <!-- Quick Budget Target Trigger -->
-        <div class="quick-budget-badge" onclick="window.SmartGrocery.switchTab('budget')" title="Ubah batas dompet">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <rect x="2" y="4" width="20" height="16" rx="2"></rect><line x1="12" y1="10" x2="12" y2="14"></line>
-          </svg>
-          <span>Limit: <strong id="quick-budget-val">Rp 500.000</strong></span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <!-- User Profile & Account Chip -->
+          <button class="user-profile-badge" id="user-profile-btn" onclick="window.SmartGrocery.openLoginModal()" title="Akun Bersama Multi-Device">
+            <span class="user-avatar-icon">👤</span>
+            <span id="active-user-name">Keluarga</span>
+          </button>
+
+          <!-- Quick Budget Target Trigger -->
+          <div class="quick-budget-badge" onclick="window.SmartGrocery.switchTab('budget')" title="Ubah batas dompet">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <rect x="2" y="4" width="20" height="16" rx="2"></rect><line x1="12" y1="10" x2="12" y2="14"></line>
+            </svg>
+            <span>Limit: <strong id="quick-budget-val">Rp 500.000</strong></span>
+          </div>
         </div>
       </div>
 
@@ -111,6 +119,39 @@
         
         <!-- Controls & Category Filter -->
         <div class="trolley-controls">
+
+          <!-- SESI BELANJA REALTIME (STORE LOCATION, DATE, SYNC STATUS) -->
+          <div class="session-info-card">
+            <div class="session-info-header">
+              <div class="session-store-group" title="Nama Toko/Supermarket (otomatis sinkron ke HP & PC)">
+                <svg class="session-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                  <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+                <input type="text" id="session-store-location" class="session-store-input" placeholder="Superindo / Toko..." value="Superindo Sudirman">
+              </div>
+
+              <div class="session-date-group" title="Tanggal Sesi Belanja">
+                <svg class="session-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+                <input type="date" id="session-shopping-date" class="session-date-input">
+              </div>
+            </div>
+
+            <div class="session-live-status-row">
+              <span class="session-sync-indicator" id="session-sync-pill">
+                <span class="sync-dot-pulse"></span>
+                <span id="session-sync-text">Realtime Multi-Device Aktif</span>
+              </span>
+              <span class="session-last-editor" id="session-last-editor">
+                HP & PC Terhubung
+              </span>
+            </div>
+          </div>
+
           <!-- Category Quick Chips -->
           <div class="category-chips">
             <button class="chip-btn active" data-cat="all">Semua</button>
@@ -428,8 +469,61 @@
     <!-- TOAST NOTIFICATION FLOATING -->
     <div class="toast-notice" id="toast-notice"></div>
 
+    <!-- ======================================================================
+         LOGIN MODAL: 1 AKUN BERSAMA MULTI-DEVICE (HP & PC)
+         Tanpa verifikasi rumit, langsung masuk & sinkron
+         ====================================================================== -->
+    <div class="login-modal-overlay" id="login-modal-overlay" style="display: none;">
+      <div class="login-modal-card">
+        <button class="login-close-corner" onclick="window.SmartGrocery.closeLoginModal()" title="Tutup">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+
+        <div class="login-header-icon">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+        </div>
+
+        <h2 class="login-title">Akses Troli Bersama</h2>
+        <p class="login-subtitle">Multi-Device Realtime Cloud Firestore</p>
+
+        <div class="login-account-info-box">
+          <div class="info-badge">1 Akun Bersama</div>
+          <p>Semua yang membuka web ini di HP (supermarket) dan PC (rumah) langsung terhubung ke troli yang sama tanpa perlu di-refresh.</p>
+        </div>
+
+        <form id="shared-login-form" onsubmit="event.preventDefault(); window.SmartGrocery.handleLogin();">
+          <div class="form-group" style="text-align: left; margin-bottom: 12px;">
+            <label class="form-label" for="login-username">Nama Pengguna / Perangkat</label>
+            <input type="text" id="login-username" class="form-input-text" placeholder="Contoh: HP Supermarket / PC Rumah / Keluarga" value="Keluarga Rantau" required>
+          </div>
+
+          <div class="form-group" style="text-align: left; margin-bottom: 14px;">
+            <label class="form-label" for="login-password">Password Akun</label>
+            <input type="password" id="login-password" class="form-input-text" placeholder="Masukkan password apapun..." value="trolibersama" required>
+            <span class="login-hint">ℹ️ Password tidak perlu verifikasi, semua yang diisi dianggap benar agar mudah digunakan bersama.</span>
+          </div>
+
+          <button type="submit" class="btn-login-submit">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            <span>Masuk & Sinkronkan Troli</span>
+          </button>
+        </form>
+      </div>
+    </div>
+
   </div>
 
+  <!-- Firebase Cloud Firestore Realtime Sync Module -->
+  <script type="module" src="js/firebase-sync.js"></script>
   <!-- Main JavaScript Logic -->
   <script src="js/app.js"></script>
 </body>

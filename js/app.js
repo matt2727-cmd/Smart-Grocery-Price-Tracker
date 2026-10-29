@@ -11,6 +11,9 @@
   const STORAGE_KEY_BUDGET = 'sg_budget_limit_v2';
   const STORAGE_KEY_HISTORY = 'sg_shopping_history_v2';
   const STORAGE_KEY_REF_PRICES = 'sg_ref_prices_v2';
+  const STORAGE_KEY_STORE = 'sg_store_location_v2';
+  const STORAGE_KEY_DATE = 'sg_shopping_date_v2';
+  const STORAGE_KEY_AUTH = 'sg_auth_user_v2';
 
   // --- DEFAULT SEED DATA (REALISTIS UNTUK SISWA RANTAU) ---
   const DEFAULT_REF_PRICES = {
@@ -107,12 +110,18 @@
   // --- STATE MANAGEMENT ---
   let appState = {
     budgetLimit: 500000,
+    storeLocation: 'Superindo Sudirman',
+    shoppingDate: new Date().toISOString().split('T')[0],
     items: [],
     history: [],
     refPrices: {},
     activeCategoryFilter: 'all',
     searchQuery: '',
-    editingItemId: null
+    editingItemId: null,
+    currentUser: { username: 'Keluarga Rantau', loggedIn: true },
+    syncStatus: 'connecting',
+    lastUpdatedBy: '',
+    lastUpdatedAt: ''
   };
 
   // --- HELPER FORMATTERS ---
@@ -285,6 +294,8 @@
     setupClock();
     setupEventListeners();
     setupPWA();
+    checkAuthStatus();
+    initFirebaseRealtime();
     renderAll();
   }
 
@@ -293,6 +304,16 @@
       const storedBudget = localStorage.getItem(STORAGE_KEY_BUDGET);
       if (storedBudget) {
         appState.budgetLimit = parseInt(storedBudget, 10) || 500000;
+      }
+
+      const storedStore = localStorage.getItem(STORAGE_KEY_STORE);
+      if (storedStore) {
+        appState.storeLocation = storedStore;
+      }
+
+      const storedDate = localStorage.getItem(STORAGE_KEY_DATE);
+      if (storedDate) {
+        appState.shoppingDate = storedDate;
       }
 
       const storedRefPrices = localStorage.getItem(STORAGE_KEY_REF_PRICES);
@@ -356,6 +377,217 @@
 
   function saveRefPrices() {
     localStorage.setItem(STORAGE_KEY_REF_PRICES, JSON.stringify(appState.refPrices));
+  }
+
+  function saveAllToStorage() {
+    saveItems();
+    saveBudget();
+    localStorage.setItem(STORAGE_KEY_STORE, appState.storeLocation || '');
+    localStorage.setItem(STORAGE_KEY_DATE, appState.shoppingDate || '');
+    saveHistory();
+    saveRefPrices();
+    if (appState.currentUser) {
+      localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(appState.currentUser));
+    }
+  }
+
+  // --- SINKRONISASI CLOUD FIRESTORE REALTIME & LOCALSTORAGE ---
+  function syncToCloud(immediate = false) {
+    saveAllToStorage();
+    const data = computeTotals();
+
+    if (window.FirebaseSync && typeof window.FirebaseSync.pushSessionState === 'function') {
+      const payload = {
+        storeLocation: appState.storeLocation,
+        shoppingDate: appState.shoppingDate,
+        walletLimit: appState.budgetLimit,
+        items: appState.items,
+        totalSpent: data.grandTotal,
+        totalSaved: data.totalSavings,
+        itemCount: data.items.length,
+        history: appState.history,
+        refPrices: appState.refPrices,
+        lastUpdated: new Date().toISOString(),
+        updatedBy: appState.currentUser ? appState.currentUser.username : 'Troli Bersama'
+      };
+      window.FirebaseSync.pushSessionState(payload, immediate);
+    }
+  }
+
+  function getCurrentStateForCloud() {
+    const data = computeTotals();
+    return {
+      storeLocation: appState.storeLocation,
+      shoppingDate: appState.shoppingDate,
+      walletLimit: appState.budgetLimit,
+      items: appState.items,
+      totalSpent: data.grandTotal,
+      totalSaved: data.totalSavings,
+      itemCount: data.items.length,
+      history: appState.history,
+      refPrices: appState.refPrices,
+      lastUpdated: new Date().toISOString(),
+      updatedBy: appState.currentUser ? appState.currentUser.username : 'Troli Bersama'
+    };
+  }
+
+  function applyRemoteState(cloudData) {
+    if (!cloudData) return;
+
+    if (cloudData.storeLocation && cloudData.storeLocation !== appState.storeLocation) {
+      appState.storeLocation = cloudData.storeLocation;
+      const storeInput = document.getElementById('session-store-location');
+      if (storeInput && document.activeElement !== storeInput) {
+        storeInput.value = cloudData.storeLocation;
+      }
+    }
+
+    if (cloudData.shoppingDate && cloudData.shoppingDate !== appState.shoppingDate) {
+      appState.shoppingDate = cloudData.shoppingDate;
+      const dateInput = document.getElementById('session-shopping-date');
+      if (dateInput && document.activeElement !== dateInput) {
+        dateInput.value = cloudData.shoppingDate;
+      }
+    }
+
+    const newLimit = typeof cloudData.walletLimit === 'number' ? cloudData.walletLimit : (cloudData.budgetLimit || appState.budgetLimit);
+    if (newLimit !== appState.budgetLimit) {
+      appState.budgetLimit = newLimit;
+      const budgetInput = document.getElementById('budget-limit-input');
+      if (budgetInput && document.activeElement !== budgetInput) {
+        budgetInput.value = newLimit;
+      }
+    }
+
+    if (Array.isArray(cloudData.items)) {
+      appState.items = cloudData.items;
+    }
+
+    if (Array.isArray(cloudData.history)) {
+      appState.history = cloudData.history;
+    }
+
+    if (cloudData.refPrices) {
+      appState.refPrices = cloudData.refPrices;
+    }
+
+    if (cloudData.updatedBy) {
+      appState.lastUpdatedBy = cloudData.updatedBy;
+    }
+    if (cloudData.lastUpdated) {
+      appState.lastUpdatedAt = cloudData.lastUpdated;
+    }
+
+    // Simpan salinan terbaru ke LocalStorage (Offline Fallback aman saat F5!)
+    saveAllToStorage();
+
+    // Render ulang layar seketika tanpa perlu refresh browser
+    renderAll();
+
+    // Update status bar editor
+    const lastEditorEl = document.getElementById('session-last-editor');
+    if (lastEditorEl && cloudData.updatedBy) {
+      lastEditorEl.textContent = `Update: ${cloudData.updatedBy}`;
+    }
+
+    // Tampilkan notifikasi jika perubahan datang dari perangkat lain (HP di supermarket)
+    if (cloudData.updatedBy && appState.currentUser && cloudData.updatedBy !== appState.currentUser.username) {
+      showToast(`⚡ Troli disinkronkan dari ${cloudData.updatedBy}!`, 'success');
+    }
+  }
+
+  function updateSyncStatus(statusObj) {
+    const syncPill = document.getElementById('session-sync-pill');
+    const syncText = document.getElementById('session-sync-text');
+    const lastEditorEl = document.getElementById('session-last-editor');
+
+    if (!syncPill || !syncText) return;
+
+    if (statusObj.status === 'connected') {
+      syncPill.className = 'session-sync-indicator';
+      syncText.textContent = 'Realtime Multi-Device Aktif';
+      if (lastEditorEl) {
+        if (statusObj.updatedBy) {
+          lastEditorEl.textContent = `Update: ${statusObj.updatedBy}`;
+        } else {
+          lastEditorEl.textContent = 'HP & PC Terhubung';
+        }
+      }
+    } else if (statusObj.status === 'syncing') {
+      syncPill.className = 'session-sync-indicator';
+      syncText.textContent = statusObj.text || 'Menyinkronkan...';
+    } else {
+      syncPill.className = 'session-sync-indicator sync-offline';
+      syncText.textContent = statusObj.text || 'Mode Offline (LocalStorage)';
+      if (lastEditorEl) {
+        lastEditorEl.textContent = 'Data aman di perangkat';
+      }
+    }
+  }
+
+  // --- SISTEM 1 AKUN MULTI-DEVICE (HP & PC) ---
+  function checkAuthStatus() {
+    const storedAuth = localStorage.getItem(STORAGE_KEY_AUTH);
+    if (storedAuth) {
+      try {
+        appState.currentUser = JSON.parse(storedAuth);
+      } catch (e) {
+        appState.currentUser = { username: 'Keluarga Rantau', loggedIn: true };
+      }
+    } else {
+      openLoginModal();
+    }
+    updateUserBadge();
+  }
+
+  function updateUserBadge() {
+    const badgeText = document.getElementById('active-user-name');
+    if (badgeText && appState.currentUser) {
+      badgeText.textContent = appState.currentUser.username || 'Keluarga';
+    }
+  }
+
+  function openLoginModal() {
+    const modal = document.getElementById('login-modal-overlay');
+    if (modal) {
+      modal.style.display = 'flex';
+      const usernameInput = document.getElementById('login-username');
+      if (usernameInput && appState.currentUser) {
+        usernameInput.value = appState.currentUser.username || 'Keluarga Rantau';
+      }
+    }
+  }
+
+  function closeLoginModal() {
+    const modal = document.getElementById('login-modal-overlay');
+    if (modal) modal.style.display = 'none';
+  }
+
+  function handleLogin() {
+    const usernameInput = document.getElementById('login-username');
+    const username = (usernameInput && usernameInput.value.trim()) || 'Keluarga Rantau';
+
+    // Tidak diverifikasi, langsung dianggap benar untuk kemudahan akses bersama
+    appState.currentUser = {
+      username: username,
+      loggedIn: true,
+      loginAt: new Date().toISOString()
+    };
+    localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(appState.currentUser));
+    updateUserBadge();
+    closeLoginModal();
+    showToast(`Akun '${username}' aktif! Troli tersinkron.`, 'success');
+
+    // Langsung dorong state terkini ke cloud dengan nama akun baru
+    syncToCloud(true);
+  }
+
+  function initFirebaseRealtime() {
+    if (window.FirebaseSync && typeof window.FirebaseSync.initFirebaseSync === 'function') {
+      window.FirebaseSync.initFirebaseSync(applyRemoteState, updateSyncStatus);
+    } else {
+      setTimeout(initFirebaseRealtime, 200);
+    }
   }
 
   // --- CLOCK STATUS BAR ---
@@ -754,6 +986,7 @@
 
     item.qty = newQty;
     saveItems();
+    syncToCloud(false);
     renderAll();
   }
 
@@ -762,12 +995,14 @@
     if (!item) return;
     item.inTrolley = !item.inTrolley;
     saveItems();
+    syncToCloud(true);
     renderAll();
   }
 
   function deleteItem(itemId) {
     appState.items = appState.items.filter(i => i.id !== itemId);
     saveItems();
+    syncToCloud(true);
     renderAll();
     showToast('Barang dihapus dari troli');
   }
@@ -775,6 +1010,7 @@
   function populatePresetItems() {
     appState.items = [...DEFAULT_TROLLEY_ITEMS];
     saveItems();
+    syncToCloud(true);
     renderAll();
     showToast('Daftar barang kebutuhan pokok ditambahkan!', 'success');
   }
@@ -943,6 +1179,7 @@
     }
 
     saveItems();
+    syncToCloud(true);
     closeModal();
     renderAll();
   }
@@ -1001,6 +1238,7 @@
     // 3. Bersihkan keranjang belanja
     appState.items = [];
     saveItems();
+    syncToCloud(true);
 
     renderAll();
     switchTab('history');
@@ -1027,6 +1265,7 @@
     }));
 
     saveItems();
+    syncToCloud(true);
     renderAll();
     switchTab('trolley');
     showToast('Daftar berhasil disalin ke Troli!', 'success');
@@ -1192,6 +1431,26 @@
       });
     });
 
+    // Session Store Location Input (Realtime sync HP & PC)
+    const storeLocationInput = document.getElementById('session-store-location');
+    if (storeLocationInput) {
+      storeLocationInput.value = appState.storeLocation || 'Superindo Sudirman';
+      storeLocationInput.addEventListener('input', (e) => {
+        appState.storeLocation = e.target.value.trim() || 'Superindo';
+        syncToCloud(false);
+      });
+    }
+
+    // Session Shopping Date Input (Realtime sync HP & PC)
+    const shoppingDateInput = document.getElementById('session-shopping-date');
+    if (shoppingDateInput) {
+      shoppingDateInput.value = appState.shoppingDate || new Date().toISOString().split('T')[0];
+      shoppingDateInput.addEventListener('change', (e) => {
+        appState.shoppingDate = e.target.value;
+        syncToCloud(true);
+      });
+    }
+
     // Budget Input in Tab 3
     const budgetInput = document.getElementById('budget-limit-input');
     if (budgetInput) {
@@ -1201,6 +1460,7 @@
         if (val > 0) {
           appState.budgetLimit = val;
           saveBudget();
+          syncToCloud(true);
           renderAll();
           showToast('Batas anggaran berhasil disimpan!', 'success');
         }
@@ -1215,6 +1475,7 @@
           appState.budgetLimit = val;
           if (budgetInput) budgetInput.value = val;
           saveBudget();
+          syncToCloud(true);
           renderAll();
           showToast(`Anggaran diset ke ${formatRupiah(val)}!`, 'success');
         }
@@ -1235,7 +1496,7 @@
     }
   }
 
-  // --- EXPOSE GLOBAL METHODS FOR INLINE ONCLICK HANDLERS ---
+  // --- EXPOSE GLOBAL METHODS FOR INLINE ONCLICK HANDLERS & FIREBASE ---
   window.SmartGrocery = {
     updateQty,
     toggleCheckItem,
@@ -1248,6 +1509,13 @@
     handleCheckout,
     restoreHistoryToCart,
     copyHistorySummary,
+    openLoginModal,
+    closeLoginModal,
+    handleLogin,
+    getCurrentStateForCloud,
+    applyRemoteState,
+    updateSyncStatus,
+    syncToCloud,
     toggleHistoryCard: (cardId) => {
       const card = document.getElementById(cardId);
       if (card) card.classList.toggle('expanded');

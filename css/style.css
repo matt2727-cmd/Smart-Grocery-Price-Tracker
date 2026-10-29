@@ -1440,3 +1440,277 @@ body {
   border-color: #10B981;
   color: #A7F3D0;
 }
+
+/* ==========================================================================
+   MULTI-DEVICE REALTIME & LOGIN STYLES
+   ========================================================================== */
+
+/* User Profile Badge in Header */
+.user-profile-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-main);
+  padding: 5px 10px;
+  border-radius: var(--radius-full);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+}
+
+.user-profile-badge:hover {
+  background: var(--bg-card-hover);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.user-avatar-icon {
+  font-size: 13px;
+}
+
+/* Sesi Belanja Realtime Card */
+.session-info-card {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(10px);
+}
+
+.session-info-header {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.session-store-group, .session-date-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(11, 17, 32, 0.7);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  transition: border-color 0.2s ease;
+}
+
+.session-store-group:focus-within, .session-date-group:focus-within {
+  border-color: #38BDF8;
+}
+
+.session-icon {
+  color: #38BDF8;
+  flex-shrink: 0;
+}
+
+.session-store-input, .session-date-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-main);
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: 600;
+  width: 100%;
+}
+
+.session-store-input::placeholder {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
+.session-date-input::-webkit-calendar-picker-indicator {
+  filter: invert(0.8);
+  cursor: pointer;
+}
+
+.session-live-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+}
+
+.session-sync-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #34D399;
+  font-weight: 700;
+}
+
+.session-sync-indicator.sync-offline {
+  color: #FBBF24;
+}
+
+.sync-dot-pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #10B981;
+  box-shadow: 0 0 8px #10B981;
+  animation: pulseDot 2s infinite;
+}
+
+.sync-offline .sync-dot-pulse {
+  background-color: #F59E0B;
+  box-shadow: 0 0 8px #F59E0B;
+  animation: none;
+}
+
+@keyframes pulseDot {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.8; }
+}
+
+.session-last-editor {
+  color: var(--text-dim);
+  font-size: 10.5px;
+}
+
+/* Login Modal Overlay */
+.login-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 8, 17, 0.88);
+  backdrop-filter: blur(12px);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  animation: fadeIn 0.3s ease;
+}
+
+.login-modal-card {
+  width: 100%;
+  max-width: 390px;
+  background: #151F32;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 30px rgba(16, 185, 129, 0.15);
+  border-radius: 24px;
+  padding: 24px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-header-icon {
+  width: 54px;
+  height: 54px;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 14px;
+  color: #10B981;
+}
+
+.login-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-bottom: 4px;
+}
+
+.login-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.login-account-info-box {
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.login-account-info-box .info-badge {
+  display: inline-block;
+  background: #0284C7;
+  color: #FFFFFF;
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 99px;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.login-account-info-box p {
+  font-size: 11px;
+  color: #BAE6FD;
+  line-height: 1.45;
+}
+
+.login-hint {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  display: block;
+  margin-top: 5px;
+  text-align: left;
+  line-height: 1.35;
+}
+
+.btn-login-submit {
+  width: 100%;
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+  color: #FFFFFF;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 12px 18px;
+  font-size: 13.5px;
+  font-weight: 800;
+  font-family: var(--font-family);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  margin-top: 14px;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
+  transition: all 0.2s ease;
+}
+
+.btn-login-submit:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+}
+
+.btn-login-submit:active {
+  transform: translateY(0);
+}
+
+.login-close-corner {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px;
+}
+
+/* Remote update flash animation */
+@keyframes remoteFlash {
+  0% { box-shadow: 0 0 0 2px #10B981, 0 0 20px rgba(16, 185, 129, 0.6); }
+  50% { box-shadow: 0 0 0 2px #34D399, 0 0 25px rgba(52, 211, 153, 0.8); }
+  100% { box-shadow: none; }
+}
+
+.item-remote-updated {
+  animation: remoteFlash 1.5s ease;
+}
