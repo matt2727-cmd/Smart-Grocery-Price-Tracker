@@ -8,8 +8,7 @@ import {
   getFirestore,
   doc,
   setDoc,
-  onSnapshot,
-  enableIndexedDbPersistence
+  onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 // Firebase Configuration milik pengguna
@@ -29,12 +28,59 @@ let db = null;
 let sessionDocRef = null;
 let unsubscribeSnapshot = null;
 let debounceTimeout = null;
-let isFirstSync = true;
 let isApplyingRemote = false;
+let pendingWritePayload = null;
 
 // Kumpulan subscriber status & remote changes
 let onRemoteStateCallback = null;
 let onSyncStatusCallback = null;
+
+// Sanitasi items agar bebas dari undefined yang dapat menyebabkan setDoc error di HP
+function sanitizeItems(items) {
+  if (!Array.isArray(items)) return [];
+  return items.map(it => ({
+    id: String(it.id || 'item-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5)),
+    name: String(it.name || '').trim(),
+    unitPrice: Number(it.unitPrice || it.price || 0),
+    qty: Math.max(1, Number(it.qty || 1)),
+    discountInput: String(it.discountInput || ''),
+    category: String(it.category || 'pokok'),
+    unit: String(it.unit || 'pcs'),
+    inTrolley: Boolean(it.inTrolley)
+  }));
+}
+
+function sanitizeRefPrices(refPrices) {
+  if (!refPrices || typeof refPrices !== 'object') return {};
+  const clean = {};
+  for (const [k, v] of Object.entries(refPrices)) {
+    if (k && v && typeof v === 'object') {
+      clean[k] = {
+        name: String(v.name || k),
+        price: Number(v.price || 0),
+        unit: String(v.unit || 'pcs')
+      };
+    }
+  }
+  return clean;
+}
+
+function sanitizeHistory(history) {
+  if (!Array.isArray(history)) return [];
+  return history.map(h => ({
+    id: String(h.id || 'hist-' + Date.now()),
+    dateStr: String(h.dateStr || ''),
+    totalSpent: Number(h.totalSpent || 0),
+    totalSaved: Number(h.totalSaved || 0),
+    itemCount: Number(h.itemCount || (h.items ? h.items.length : 0)),
+    items: Array.isArray(h.items) ? h.items.map(it => ({
+      name: String(it.name || ''),
+      qty: Number(it.qty || 1),
+      unit: String(it.unit || 'pcs'),
+      price: Number(it.price || it.unitPrice || 0)
+    })) : []
+  }));
+}
 
 export function initFirebaseSync(onRemoteChange, onStatusChange) {
   onRemoteStateCallback = onRemoteChange;
@@ -43,26 +89,21 @@ export function initFirebaseSync(onRemoteChange, onStatusChange) {
   try {
     if (!app) {
       app = initializeApp(firebaseConfig);
+      // Menggunakan in-memory cache murni untuk koneksi realtime tanpa lock antar-tab
       db = getFirestore(app);
-
-      // Aktifkan offline persistence IndexedDb jika browser mendukung
-      try {
-        enableIndexedDbPersistence(db).catch((err) => {
-          if (err.code === 'failed-precondition') {
-            console.warn('[Firebase] Multi-tab persistence: tab lain sedang aktif.');
-          } else if (err.code === 'unimplemented') {
-            console.warn('[Firebase] Browser tidak mendukung persistence IndexedDB.');
-          }
-        });
-      } catch (errPersist) {
-        console.warn('[Firebase] Persistence init warning:', errPersist);
-      }
     }
 
     // Document tunggal bersama untuk 1 akun multi-device (HP & PC)
     sessionDocRef = doc(db, "groceries", "shared_session");
 
     startRealtimeListener();
+
+    // Jalankan antrean write jika ada yang memanggil sebelum listener siap
+    if (pendingWritePayload) {
+      const { stateData, immediate } = pendingWritePayload;
+      pendingWritePayload = null;
+      pushSessionState(stateData, immediate);
+    }
 
     // Listen online / offline browser events
     window.addEventListener('online', () => {
@@ -72,6 +113,10 @@ export function initFirebaseSync(onRemoteChange, onStatusChange) {
           text: 'Terhubung Realtime (HP & PC)',
           isOnline: true
         });
+      }
+      if (window.SmartGrocery && typeof window.SmartGrocery.getCurrentStateForCloud === 'function') {
+        const state = window.SmartGrocery.getCurrentStateForCloud();
+        pushSessionState(state, true);
       }
     });
 
@@ -99,7 +144,7 @@ export function initFirebaseSync(onRemoteChange, onStatusChange) {
 
 /**
  * PENTING: Menggunakan onSnapshot() realtime listener
- * Bukan getDoc()/getDocs(). Setiap perubahan di HP langsung diterima PC seketika.
+ * Setiap perubahan di HP langsung diterima PC seketika.
  */
 function startRealtimeListener() {
   if (unsubscribeSnapshot) {
@@ -113,43 +158,34 @@ function startRealtimeListener() {
     });
   }
 
+  // onSnapshot tanpa includeMetadataChanges agar murni mendengarkan perubahan data dokumen di cloud
   unsubscribeSnapshot = onSnapshot(
     sessionDocRef,
-    { includeMetadataChanges: true },
     (snapshot) => {
-      const hasPending = snapshot.metadata.hasPendingWrites;
-      const fromCache = snapshot.metadata.fromCache;
-
       if (snapshot.exists()) {
         const data = snapshot.data();
 
-        // Jika perubahan berasal dari server (perangkat lain seperti HP di supermarket)
-        // dan BUKAN hasil pending write lokal kita sendiri:
-        if (!hasPending) {
-          isApplyingRemote = true;
+        // Terapkan data ke appState dengan try...finally agar isApplyingRemote selalu ter-reset
+        isApplyingRemote = true;
+        try {
           if (onRemoteStateCallback) {
             onRemoteStateCallback(data);
           }
+        } catch (errCallback) {
+          console.error('[Firebase] Error saat applyRemoteState:', errCallback);
+        } finally {
           isApplyingRemote = false;
+        }
 
-          if (onSyncStatusCallback) {
-            const updatedWho = data.updatedBy ? ` (dari ${data.updatedBy})` : '';
-            onSyncStatusCallback({
-              status: 'connected',
-              text: 'Realtime Aktif' + updatedWho,
-              lastUpdated: data.lastUpdated,
-              updatedBy: data.updatedBy,
-              isOnline: !fromCache
-            });
-          }
-        } else {
-          // Sedang ada penulisan lokal yang sedang di-sync ke cloud
-          if (onSyncStatusCallback) {
-            onSyncStatusCallback({
-              status: 'syncing',
-              text: 'Mengirim update ke cloud...'
-            });
-          }
+        if (onSyncStatusCallback) {
+          const updatedWho = data.updatedBy ? ` (oleh ${data.updatedBy})` : '';
+          onSyncStatusCallback({
+            status: 'connected',
+            text: 'Realtime Aktif' + updatedWho,
+            lastUpdated: data.lastUpdated,
+            updatedBy: data.updatedBy,
+            isOnline: true
+          });
         }
       } else {
         // Dokumen di Firestore belum ada sama sekali (pertama kali dibuat)
@@ -160,7 +196,6 @@ function startRealtimeListener() {
           pushSessionState(initialState, true);
         }
       }
-      isFirstSync = false;
     },
     (error) => {
       console.error('[Firebase] Realtime onSnapshot listener error:', error);
@@ -180,7 +215,14 @@ function startRealtimeListener() {
  * Mendukung debounce agar saat menekan + / - berkali-kali tidak spamming network
  */
 export function pushSessionState(stateData, immediate = false) {
-  if (!sessionDocRef || isApplyingRemote) return;
+  // Jika sedang menerapkan data dari remote, jangan broadcast balik untuk mencegah echo-loop
+  if (isApplyingRemote) return;
+
+  if (!sessionDocRef) {
+    console.warn('[Firebase] sessionDocRef belum siap, simpan ke antrean sinkronisasi.');
+    pendingWritePayload = { stateData, immediate };
+    return;
+  }
 
   if (debounceTimeout) {
     clearTimeout(debounceTimeout);
@@ -195,21 +237,22 @@ export function pushSessionState(stateData, immediate = false) {
         });
       }
 
-      // Pastikan field bersih tanpa undefined
+      // Pastikan field bersih tanpa undefined agar Firestore tidak reject di HP
       const cleanData = {
-        storeLocation: stateData.storeLocation || 'Superindo Sudirman',
-        shoppingDate: stateData.shoppingDate || new Date().toISOString().split('T')[0],
+        storeLocation: String(stateData.storeLocation || 'Superindo Sudirman'),
+        shoppingDate: String(stateData.shoppingDate || new Date().toISOString().split('T')[0]),
         walletLimit: Number(stateData.walletLimit || 500000),
-        items: Array.isArray(stateData.items) ? stateData.items : [],
+        items: sanitizeItems(stateData.items),
         totalSpent: Number(stateData.totalSpent || 0),
         totalSaved: Number(stateData.totalSaved || 0),
         itemCount: Number(stateData.itemCount || (stateData.items ? stateData.items.length : 0)),
         lastUpdated: new Date().toISOString(),
-        updatedBy: stateData.updatedBy || 'Troli Bersama'
+        updatedBy: String(stateData.updatedBy || 'Troli Bersama'),
+        deviceId: String(stateData.deviceId || '')
       };
 
-      if (stateData.history) cleanData.history = stateData.history;
-      if (stateData.refPrices) cleanData.refPrices = stateData.refPrices;
+      if (stateData.history) cleanData.history = sanitizeHistory(stateData.history);
+      if (stateData.refPrices) cleanData.refPrices = sanitizeRefPrices(stateData.refPrices);
 
       await setDoc(sessionDocRef, cleanData, { merge: true });
 
@@ -236,7 +279,7 @@ export function pushSessionState(stateData, immediate = false) {
   if (immediate) {
     performWrite();
   } else {
-    debounceTimeout = setTimeout(performWrite, 250);
+    debounceTimeout = setTimeout(performWrite, 200);
   }
 }
 

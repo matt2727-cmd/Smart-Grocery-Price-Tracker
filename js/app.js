@@ -14,6 +14,17 @@
   const STORAGE_KEY_STORE = 'sg_store_location_v2';
   const STORAGE_KEY_DATE = 'sg_shopping_date_v2';
   const STORAGE_KEY_AUTH = 'sg_auth_user_v2';
+  const STORAGE_KEY_DEVICE_ID = 'sg_device_client_id_v2';
+
+  // Identifikasi unik tiap device (HP / PC) agar sinkronisasi realtime saling mengenali
+  function getDeviceId() {
+    let devId = localStorage.getItem(STORAGE_KEY_DEVICE_ID);
+    if (!devId) {
+      devId = 'dev_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now().toString(36);
+      localStorage.setItem(STORAGE_KEY_DEVICE_ID, devId);
+    }
+    return devId;
+  }
 
   // --- DEFAULT SEED DATA (REALISTIS UNTUK SISWA RANTAU) ---
   const DEFAULT_REF_PRICES = {
@@ -408,7 +419,8 @@
         history: appState.history,
         refPrices: appState.refPrices,
         lastUpdated: new Date().toISOString(),
-        updatedBy: appState.currentUser ? appState.currentUser.username : 'Troli Bersama'
+        updatedBy: appState.currentUser ? appState.currentUser.username : 'Troli Bersama',
+        deviceId: getDeviceId()
       };
       window.FirebaseSync.pushSessionState(payload, immediate);
     }
@@ -427,12 +439,16 @@
       history: appState.history,
       refPrices: appState.refPrices,
       lastUpdated: new Date().toISOString(),
-      updatedBy: appState.currentUser ? appState.currentUser.username : 'Troli Bersama'
+      updatedBy: appState.currentUser ? appState.currentUser.username : 'Troli Bersama',
+      deviceId: getDeviceId()
     };
   }
 
   function applyRemoteState(cloudData) {
     if (!cloudData) return;
+
+    const myDeviceId = getDeviceId();
+    const isFromOtherDevice = Boolean(cloudData.deviceId && cloudData.deviceId !== myDeviceId);
 
     if (cloudData.storeLocation && cloudData.storeLocation !== appState.storeLocation) {
       appState.storeLocation = cloudData.storeLocation;
@@ -451,7 +467,7 @@
     }
 
     const newLimit = typeof cloudData.walletLimit === 'number' ? cloudData.walletLimit : (cloudData.budgetLimit || appState.budgetLimit);
-    if (newLimit !== appState.budgetLimit) {
+    if (typeof newLimit === 'number' && newLimit > 0 && newLimit !== appState.budgetLimit) {
       appState.budgetLimit = newLimit;
       const budgetInput = document.getElementById('budget-limit-input');
       if (budgetInput && document.activeElement !== budgetInput) {
@@ -459,15 +475,25 @@
       }
     }
 
+    // Pastikan item-item dari cloud terisi lengkap tanpa missing properties
     if (Array.isArray(cloudData.items)) {
-      appState.items = cloudData.items;
+      appState.items = cloudData.items.map(it => ({
+        id: String(it.id || ('item-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5))),
+        name: String(it.name || '').trim(),
+        unitPrice: Number(it.unitPrice || it.price || 0),
+        qty: Math.max(1, Number(it.qty || 1)),
+        discountInput: String(it.discountInput || ''),
+        category: String(it.category || 'pokok'),
+        unit: String(it.unit || 'pcs'),
+        inTrolley: Boolean(it.inTrolley)
+      }));
     }
 
     if (Array.isArray(cloudData.history)) {
       appState.history = cloudData.history;
     }
 
-    if (cloudData.refPrices) {
+    if (cloudData.refPrices && typeof cloudData.refPrices === 'object') {
       appState.refPrices = cloudData.refPrices;
     }
 
@@ -490,9 +516,10 @@
       lastEditorEl.textContent = `Update: ${cloudData.updatedBy}`;
     }
 
-    // Tampilkan notifikasi jika perubahan datang dari perangkat lain (HP di supermarket)
-    if (cloudData.updatedBy && appState.currentUser && cloudData.updatedBy !== appState.currentUser.username) {
-      showToast(`⚡ Troli disinkronkan dari ${cloudData.updatedBy}!`, 'success');
+    // Tampilkan notifikasi jika perubahan datang dari perangkat lain (HP di supermarket / PC di rumah)
+    if (isFromOtherDevice) {
+      const who = cloudData.updatedBy || 'perangkat lain';
+      showToast(`⚡ Troli diperbarui dari ${who}!`, 'success');
     }
   }
 

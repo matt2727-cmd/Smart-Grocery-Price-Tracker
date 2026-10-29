@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smart-grocery-v2';
+const CACHE_NAME = 'smart-grocery-v3';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -24,6 +24,7 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
+            console.log('[SW] Menghapus cache lama:', key);
             return caches.delete(key);
           }
         })
@@ -33,10 +34,19 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Let Firebase / Firestore network and gstatic streams pass directly to browser
-  if (event.request.url.includes('firestore.googleapis.com') ||
-      event.request.url.includes('firebase') ||
-      event.request.url.includes('gstatic.com')) {
+  const url = event.request.url;
+
+  // Lewatkan langsung semua network request Firebase, Firestore, Google APIs & WebChannel
+  if (url.includes('firestore.googleapis.com') ||
+      url.includes('firebase') ||
+      url.includes('gstatic.com') ||
+      url.includes('google.com') ||
+      url.includes('googleapis.com')) {
+    return;
+  }
+
+  // Cache API hanya mendukung request GET, abaikan method lainnya
+  if (event.request.method !== 'GET') {
     return;
   }
 
